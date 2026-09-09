@@ -158,4 +158,93 @@ public class CalculadoraDesviacion {
             return new ResultadoLectura(valoresValidos, listaErrores);
         }
     }
+    public static class SesionDatos {
+        private List<Double> datosActuales = new ArrayList<>();
+        private String descripcionOrigen = "";
+        private boolean cargado = false;
+
+        // HU-10: Limpiar datos actuales y comenzar de nuevo
+        public void reiniciar() {
+            this.datosActuales.clear();
+            this.descripcionOrigen = "";
+            this.cargado = false;
+        }
+
+        public boolean estaCargado() {
+            return cargado;
+        }
+
+        public List<Double> getDatosActuales() {
+            return new ArrayList<>(datosActuales); // Devuelve una copia para evitar modificaciones accidentales
+        }
+
+        // HU-03 y HU-04: Captura manual de valores
+        public List<String> cargarValoresManuales(String entradaTexto) {
+            List<String> errores = new ArrayList<>();
+            // Reemplaza comas por espacios y separa por cualquier cantidad de espacios en blanco
+            String[] fragmentos = entradaTexto.replace(",", " ").trim().split("\\s+");
+
+            if (fragmentos.length == 0 || (fragmentos.length == 1 && fragmentos[0].isEmpty())) {
+                errores.add("Error: Debe ingresar al menos un valor numérico.");
+                return errores;
+            }
+
+            List<Double> valoresProcesados = new ArrayList<>();
+            for (int i = 0; i < fragmentos.length; i++) {
+                String token = fragmentos[i];
+                try {
+                    valoresProcesados.add(Double.parseDouble(token));
+                } catch (NumberFormatException e) {
+                    errores.add(String.format("Valor #%d ('%s') no es un número válido.", (i + 1), token));
+                }
+            }
+
+            if (!errores.isEmpty()) {
+                return errores;
+            }
+
+            this.datosActuales = valoresProcesados;
+            this.descripcionOrigen = String.format("Captura manual (%d observaciones)", this.datosActuales.size());
+            this.cargado = true;
+            return errores;
+        }
+
+        // HU-01 y HU-02: Puente entre el CSV y la Sesión
+        public List<String> cargarDesdeCsv(String rutaArchivo, int indiceColumna, String nombreColumna) {
+            ServicioCsv.ResultadoLectura resultado = ServicioCsv.leerColumna(rutaArchivo, indiceColumna);
+
+            if (resultado.tieneErrores()) {
+                return resultado.errores();
+            }
+
+            this.datosActuales = resultado.datos();
+            this.descripcionOrigen = String.format("Archivo CSV '%s' -> Columna: '%s'", rutaArchivo, nombreColumna);
+            this.cargado = true;
+            return resultado.errores();
+        }
+
+        // HU-08: Visualizar los datos antes del cálculo
+        public void mostrarVistaPrevia(int limiteElementos) {
+            if (!cargado || datosActuales.isEmpty()) {
+                System.out.println("\n[!] No hay datos cargados en la sesión actual.");
+                return;
+            }
+
+            System.out.println("\n--- VISTA PREVIA DE DATOS (HU-08) ---");
+            System.out.println("Origen: " + descripcionOrigen);
+            System.out.println("Total de observaciones: " + datosActuales.size());
+
+            StringBuilder vista = new StringBuilder();
+            int maximo = Math.min(datosActuales.size(), limiteElementos);
+            for (int i = 0; i < maximo; i++) {
+                vista.append(datosActuales.get(i));
+                if (i < maximo - 1) vista.append(", ");
+            }
+            if (datosActuales.size() > limiteElementos) {
+                vista.append("..."); // Indica que hay más datos ocultos
+            }
+            System.out.println("Valores registrados: [" + vista + "]");
+            System.out.println("-------------------------------------");
+        }
+    }
 }
