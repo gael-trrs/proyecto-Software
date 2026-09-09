@@ -247,4 +247,144 @@ public class CalculadoraDesviacion {
             System.out.println("-------------------------------------");
         }
     }
+    public static void main(String[] args) {
+        Scanner entradaTeclado = new Scanner(System.in);
+        SesionDatos sesion = new SesionDatos();
+        boolean ejecutando = true;
+
+        while (ejecutando) {
+            System.out.println("\n----------------------------------------------");
+            System.out.println("    CALCULADORA DE DESVIACIÓN ESTÁNDAR    ");
+            System.out.println("----------------------------------------------");
+            System.out.println("1. Cargar archivo CSV (HU-01, HU-02)");
+            System.out.println("2. Capturar valores manualmente (HU-03)");
+            System.out.println("3. Vista previa de datos cargados (HU-08)");
+            System.out.println("4. Calcular desviación estándar (HU-05, HU-06, HU-07)");
+            System.out.println("5. Reiniciar sesión / Limpiar datos (HU-10)");
+            System.out.println("6. Salir");
+            System.out.print("\nSeleccione una opción (1-6): ");
+
+            String opcion = entradaTeclado.nextLine().trim();
+
+            switch (opcion) {
+                case "1" -> {
+                    System.out.print("\nIngrese la ruta del archivo .csv: ");
+                    String ruta = entradaTeclado.nextLine().trim();
+
+                    if (!ruta.toLowerCase().endsWith(".csv")) {
+                        System.out.println("[!] Error: El archivo debe tener extensión .csv (HU-01).");
+                        break;
+                    }
+
+                    List<String> columnas = ServicioCsv.obtenerColumnas(ruta);
+                    if (columnas == null || columnas.isEmpty()) {
+                        System.out.println("[!] Error: No se pudo leer el archivo o el CSV no tiene cabeceras.");
+                        break;
+                    }
+
+                    System.out.println("\nColumnas disponibles en el archivo:");
+                    for (int i = 0; i < columnas.size(); i++) {
+                        System.out.printf("  %d. %s\n", (i + 1), columnas.get(i));
+                    }
+
+                    System.out.print("\nIngrese el número o nombre de la columna: ");
+                    String seleccion = entradaTeclado.nextLine().trim();
+                    int indiceSeleccionado = -1;
+                    String nombreColumna = "";
+
+                    if (seleccion.matches("\\d+")) {
+                        int indiceNumerico = Integer.parseInt(seleccion) - 1;
+                        if (indiceNumerico >= 0 && indiceNumerico < columnas.size()) {
+                            indiceSeleccionado = indiceNumerico;
+                            nombreColumna = columnas.get(indiceSeleccionado);
+                        }
+                    } else {
+                        for (int i = 0; i < columnas.size(); i++) {
+                            if (columnas.get(i).equalsIgnoreCase(seleccion)) {
+                                indiceSeleccionado = i;
+                                nombreColumna = columnas.get(i);
+                                break;
+                            }
+                        }
+                    }
+
+                    if (indiceSeleccionado == -1) {
+                        System.out.println("[!] Columna inválida o inexistente.");
+                        break;
+                    }
+
+                    List<String> fallosCsv = sesion.cargarDesdeCsv(ruta, indiceSeleccionado, nombreColumna);
+                    if (!fallosCsv.isEmpty()) {
+                        System.out.println("\n[!] Falló la validación del CSV (HU-04, HU-09):");
+                        int tope = Math.min(fallosCsv.size(), 10);
+                        for (int i = 0; i < tope; i++) {
+                            System.out.println("  - " + fallosCsv.get(i));
+                        }
+                        if (fallosCsv.size() > 10) {
+                            System.out.printf("  ... y %d errores adicionales no mostrados.\n", fallosCsv.size() - 10);
+                        }
+                    } else {
+                        System.out.printf("\n[✓] Datos cargados correctamente de '%s'.\n", nombreColumna);
+                        sesion.mostrarVistaPrevia(10);
+                    }
+                }
+                case "2" -> {
+                    System.out.println("\nIngrese los números separados por comas o espacios:");
+                    System.out.print("> ");
+                    String entradaManual = entradaTeclado.nextLine();
+                    List<String> fallosManuales = sesion.cargarValoresManuales(entradaManual);
+
+                    if (!fallosManuales.isEmpty()) {
+                        System.out.println("\n[!] Error en los datos introducidos (HU-04, HU-09):");
+                        for (String fallo : fallosManuales) {
+                            System.out.println("  - " + fallo);
+                        }
+                    } else {
+                        System.out.println("\n[✓] Datos capturados correctamente.");
+                        sesion.mostrarVistaPrevia(10);
+                    }
+                }
+                case "3" -> sesion.mostrarVistaPrevia(15);
+                case "4" -> {
+                    if (!sesion.estaCargado() || sesion.getDatosActuales().isEmpty()) {
+                        System.out.println("\n[!] No hay datos cargados. Capture datos o cargue un CSV primero.");
+                        break;
+                    }
+
+                    sesion.mostrarVistaPrevia(5);
+
+                    System.out.println("\nSeleccione la fórmula a aplicar (HU-05):");
+                    System.out.println("1. Muestra   [Divisor: n - 1]");
+                    System.out.println("2. Población [Divisor: N]");
+                    System.out.print("Opción (1/2, predeterminada 1): ");
+                    String seleccionTipo = entradaTeclado.nextLine().trim();
+                    TipoAnalisis tipo = seleccionTipo.equals("2") ? TipoAnalisis.POBLACION : TipoAnalisis.MUESTRA;
+
+                    try {
+                        ResultadoCalculo resultado = ServicioEstadistico.procesar(sesion.getDatosActuales(), tipo);
+
+                        System.out.println("\n============= RESULTADOS FINALES (HU-06, HU-07) =============");
+                        System.out.printf("Tipo aplicado:          %s\n", resultado.tipo().getDescripcion());
+                        System.out.printf("Observaciones (n / N):  %d\n", resultado.cantidad());
+                        System.out.printf("Media aritmética (x̄/μ): %.6f\n", resultado.media());
+                        System.out.printf("Desviación estándar:    %.6f\n", resultado.desviacionEstandar());
+                        System.out.println("=============================================================");
+                    } catch (IllegalArgumentException e) {
+                        System.out.printf("\n[!] Error en validación de cálculo (HU-04): %s\n", e.getMessage());
+                    }
+                }
+                case "5" -> {
+                    sesion.reiniciar();
+                    System.out.println("\n[✓] Sesión limpiada: se borraron los datos en memoria y cálculos anteriores (HU-10).");
+                }
+                case "6" -> {
+                    ejecutando = false;
+                    System.out.println("\nFinalizando la aplicación.");
+                }
+                default -> System.out.println("\n[!] Opción no reconocida. Intente de nuevo.");
+            }
+        }
+        entradaTeclado.close();
+    }
+}
 }
