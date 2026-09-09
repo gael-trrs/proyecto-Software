@@ -384,7 +384,7 @@ public class CalculadoraDesviacion {
                 default -> System.out.println("\n[!] Opción no reconocida. Intente de nuevo.");
             }
         }
-        entradaTeclado.close();
+        entradaTeclado.close()
     }
 }
 } //fin
